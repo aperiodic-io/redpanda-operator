@@ -239,6 +239,12 @@ func (w *ConfigWatcher) setSuperusers(ctx context.Context, users []string) {
 		return
 	}
 
+	users, err := mergeConfiguredSuperusers(w.fs, w.configPath, users)
+	if err != nil {
+		w.log.Error(err, "could not load configured superusers; leaving cluster configuration unchanged")
+		return
+	}
+
 	w.log.Info("setting superusers", "users", users)
 
 	if _, err := w.adminClient.PatchClusterConfig(ctx, map[string]any{
