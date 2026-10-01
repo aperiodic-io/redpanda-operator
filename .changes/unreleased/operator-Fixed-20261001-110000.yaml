@@ -1,0 +1,7 @@
+project: operator
+kind: Fixed
+body: |
+  Preserve explicitly configured superusers, including the empty-name principal
+  on authorized plaintext listeners, during sidecar startup and users Secret
+  resynchronization. Removed Secret users still lose their superuser grants.
+time: 2026-10-01T11:00:00.000000+02:00

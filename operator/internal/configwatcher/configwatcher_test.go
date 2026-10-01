@@ -75,6 +75,8 @@ func TestConfigWatcher(t *testing.T) {
 	require.NoError(t, fs.MkdirAll("/var/lib", 0o755))
 	require.NoError(t, fs.MkdirAll("/etc/secret/users", 0o755))
 	require.NoError(t, afero.WriteFile(fs, "/var/lib/redpanda.yaml", []byte(redpandaYaml), 0o644))
+	// Explicit declarations are not represented by the mounted SASL users file.
+	require.NoError(t, afero.WriteFile(fs, "/var/lib/.bootstrap.yaml", []byte("superusers: [\"\", configured]\n"), 0o644))
 	require.NoError(t, afero.WriteFile(fs, "/etc/secret/users/users.txt", []byte(strings.Join(users, "\n")), 0o644))
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -112,9 +114,16 @@ func TestConfigWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	superusers := superuserConfig["superusers"]
-	require.Len(t, superusers, 3)
+	require.Len(t, superusers, 5)
 
-	require.ElementsMatch(t, superusers, clusterUsers)
+	require.ElementsMatch(t, superusers, append(clusterUsers, "", "configured"))
+
+	// A Secret resync removes old grants while keeping explicit declarations.
+	require.NoError(t, afero.WriteFile(fs, "/etc/secret/users/users.txt", []byte(createUserLine("foo", "bar", saslMechanism)), 0o644))
+	watcher.SyncUsers(ctx, "/etc/secret/users/users.txt")
+	superuserConfig, err = adminClient.SingleKeyConfig(ctx, "superusers")
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{user, "foo", "", "configured"}, superuserConfig["superusers"])
 
 	cancel()
 
